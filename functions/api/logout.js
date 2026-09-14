@@ -1,0 +1,1 @@
+export async function onRequestPost(){return new Response(JSON.stringify({ok:true}),{headers:{'content-type':'application/json','set-cookie':'session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax'}})}

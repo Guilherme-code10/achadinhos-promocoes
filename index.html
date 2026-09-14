@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b5f62" />
+  <title>Central de Ofertas | Achadinhos & Promoções</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <img src="/assets/logo.png" alt="Achadinhos & Promoções" class="brand-logo" />
+        <div>
+          <span class="eyebrow">CENTRAL DE OFERTAS</span>
+          <h1>Achadinhos & Promoções</h1>
+        </div>
+      </div>
+      <button id="logoutBtn" class="ghost-btn">Sair</button>
+    </header>
+
+    <main class="container">
+      <section class="hero-card">
+        <div>
+          <span class="pill">AUTOMÁTICO · Shopee + Mercado Livre</span>
+          <h2>Cole o link. O resto é com o sistema.</h2>
+          <p>O site lê o produto, busca preço, desconto e imagem e já monta sua legenda pronta para o WhatsApp.</p>
+        </div>
+        <div class="hero-mark">%</div>
+      </section>
+
+      <section class="panel link-panel">
+        <div class="section-title">
+          <div>
+            <span class="eyebrow">ÚNICO PASSO</span>
+            <h3>Cole o link da oferta</h3>
+          </div>
+          <span id="platformBadge" class="platform-badge hidden"></span>
+        </div>
+        <div class="input-row">
+          <input id="productUrl" type="url" placeholder="Cole o link de afiliado da Shopee ou Mercado Livre" autocomplete="off" />
+          <button id="generateBtn" class="primary-btn">Gerar oferta</button>
+        </div>
+        <p class="hint">Ao colar um link válido, a busca começa automaticamente. Seu link original é mantido na legenda para preservar a atribuição de afiliado.</p>
+        <p id="mainStatus" class="status-text" aria-live="polite"></p>
+      </section>
+
+      <section id="loading" class="panel loading hidden">
+        <div class="spinner"></div>
+        <div><strong>Lendo o produto...</strong><p>Buscando nome, preço, desconto e imagem automaticamente.</p></div>
+      </section>
+
+      <section id="offerSection" class="workspace hidden">
+        <div class="panel details-panel">
+          <div class="section-title">
+            <div><span class="eyebrow">PRODUTO ENCONTRADO</span><h3>Dados automáticos</h3></div>
+            <span id="sourceBadge" class="source-badge"></span>
+          </div>
+          <div class="product-preview auto-preview">
+            <div class="product-image-wrap"><img id="productImage" alt="Imagem do produto" /></div>
+            <div class="auto-info">
+              <h4 id="productTitle">Produto</h4>
+              <p id="productDescription" class="product-description"></p>
+              <div class="price-grid">
+                <div class="price-card old-price-card"><span>Preço anterior</span><strong id="oldPrice">—</strong></div>
+                <div class="price-card current-price-card"><span>Preço atual</span><strong id="newPrice">—</strong></div>
+                <div class="price-card discount-card"><span>Desconto</span><strong id="discount">—</strong></div>
+              </div>
+              <div class="found-meta">
+                <span id="shopName" class="hidden"></span>
+                <span id="productId" class="hidden"></span>
+              </div>
+              <div id="autoWarning" class="notice hidden"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel message-panel">
+          <div class="section-title"><div><span class="eyebrow">PRONTO PARA PUBLICAR</span><h3>Sua legenda</h3></div></div>
+          <textarea id="offerText" readonly></textarea>
+          <div class="actions">
+            <button id="copyBtn" class="primary-btn">Copiar oferta</button>
+            <button id="openWhatsAppBtn" class="secondary-btn">Abrir WhatsApp</button>
+            <button id="downloadBtn" class="secondary-btn">Baixar arte</button>
+          </div>
+          <p id="copyStatus" class="success-text" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="panel tips-panel">
+        <div><span class="eyebrow">NOVO FLUXO</span><h3>Sem preenchimento manual</h3></div>
+        <ol>
+          <li>Copie seu link de afiliado na Shopee ou Mercado Livre.</li>
+          <li>Cole no campo acima.</li>
+          <li>O sistema lê os dados e gera a legenda sozinho.</li>
+          <li>Toque em <strong>Copiar oferta</strong> e publique.</li>
+        </ol>
+      </section>
+    </main>
+
+    <footer>Achadinhos & Promoções · Central de Ofertas</footer>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
