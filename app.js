@@ -34,7 +34,7 @@ function buildMessage(){
   const lines=['🔥🔥 ACHADINHO DO DIA 🔥🔥','','Olha esse preço! 😱','',`📦 ${title}`,''];
   if(description) lines.push(description,'');
   if(reference && parseNumber(reference)>parseNumber(newP)) lines.push(`💵 De: ${reference}`);
-  if(newP) lines.push(`🔥 Na promoção: ${newP}`);
+  if(newP) lines.push(`${d.priceStatus==='range'?'🔥 A partir de':'🔥 Preço consultado'}: ${newP}`);
   if(disc) lines.push(`🏷️ ${disc}`);
   lines.push('','🛒 COMPRE AQUI 👇',link);
   $('offerText').value=lines.join('\n');
@@ -61,7 +61,8 @@ function setData(d){
   $('shopName').classList.toggle('hidden',!d.shopName);
   $('productId').textContent=d.productId?`ID: ${d.productId}`:'';
   $('productId').classList.toggle('hidden',!d.productId);
-  const warning=!d.complete ? (d.error||'A loja não retornou todos os dados dessa oferta.') : '';
+  const warning=d.warning || (!d.complete ? (d.error||'A loja não retornou todos os dados dessa oferta.') : '');
+  for(const id of ['copyBtn','openWhatsAppBtn','downloadBtn']) $(id).disabled=!d.complete;
   $('autoWarning').textContent=warning;
   $('autoWarning').classList.toggle('hidden',!warning);
   buildMessage();
@@ -106,6 +107,7 @@ async function generate(){
   }
 }
 async function copyOffer(){
+  if(!state.data?.complete)return;
   buildMessage();
   try{
     await navigator.clipboard.writeText($('offerText').value);
@@ -116,10 +118,12 @@ async function copyOffer(){
   setTimeout(()=>$('copyStatus').textContent='',3500);
 }
 function openWhatsApp(){
+  if(!state.data?.complete)return;
   buildMessage();
   window.open('https://wa.me/?text='+encodeURIComponent($('offerText').value),'_blank','noopener,noreferrer');
 }
 function downloadArt(){
+  if(!state.data?.complete)return;
   const d=state.data||{};
   const canvas=document.createElement('canvas'); canvas.width=1080; canvas.height=1350; const c=canvas.getContext('2d');
   c.fillStyle='#f7faf9'; c.fillRect(0,0,canvas.width,canvas.height);
@@ -133,7 +137,7 @@ function downloadArt(){
     c.fillStyle='#173235';c.font='bold 39px Arial';wrap(c,d.title||'Produto em oferta',70,1015,940,48);
     const desc=(d.description||'').trim(); if(desc){c.fillStyle='#687778';c.font='25px Arial';wrap(c,desc,70,1095,940,34)}
     const ref=money(d.referencePrice||d.oldPrice); if(ref){c.fillStyle='#c9a85d';c.font='bold 42px Arial';c.fillText(`De: ${ref}`,70,1175)}
-    const price=money(d.newPrice)||'Confira o preço'; c.fillStyle='#075f61';c.font='bold 46px Arial';c.fillText(`Hoje: ${price}`,70,1230);
+    const price=money(d.newPrice)||'Confira o preço'; c.fillStyle='#075f61';c.font='bold 46px Arial';c.fillText(`${d.priceStatus==='range'?'A partir de':'Preço'}: ${price}`,70,1230);
     const disc=d.discount||calcDiscount(d.referencePrice||d.oldPrice,d.newPrice); if(disc){c.fillStyle='#075f61';c.font='bold 31px Arial';c.fillText(disc,70,1270)}
     c.fillStyle='#687778';c.font='24px Arial';c.fillText('Achadinhos & Promoções',70,1315);
     const a=document.createElement('a');a.download='oferta-achadinhos-promocoes.png';a.href=canvas.toDataURL('image/png');a.click();
@@ -153,3 +157,4 @@ $('copyBtn').addEventListener('click',copyOffer);
 $('openWhatsAppBtn').addEventListener('click',openWhatsApp);
 $('downloadBtn').addEventListener('click',downloadArt);
 $('logoutBtn').addEventListener('click',async()=>{await fetch('/api/logout',{method:'POST'});location.href='/login.html'});
+
