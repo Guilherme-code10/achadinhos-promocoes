@@ -117,10 +117,9 @@ function pickJsonProduct(items){
   for(const p of items){
     const offer=Array.isArray(p.offers)?p.offers[0]:p.offers||{};
     const price=offer.price ?? offer.lowPrice ?? p.price;
-    const high=offer.highPrice ?? '';
     const image=Array.isArray(p.image)?p.image[0]:p.image;
     if(p.name||price||image||p.description){
-      return {title:clean(p.name||''),description:clean(p.description||''),image:image||'',newPrice:formatPrice(price),oldPrice:formatPrice(high)};
+      return {title:clean(p.name||''),description:clean(p.description||''),image:image||'',newPrice:formatPrice(price),oldPrice:''};
     }
   }
   return {title:'',description:'',image:'',newPrice:'',oldPrice:''};
@@ -141,10 +140,8 @@ function genericHtmlData(html){
   const image=json.image || anyMeta(html,['og:image','twitter:image','image']) || '';
   const description=json.description || anyMeta(html,['description','og:description','twitter:description']) || '';
   const metaPrice=anyMeta(html,['product:price:amount','og:price:amount','price','product:price']) || json.newPrice;
-  const prices=collectVisiblePrices(html);
-  const newPrice=formatPrice(metaPrice || json.newPrice || prices[0] || '');
-  const oldCandidates=[json.oldPrice,...prices].filter(Boolean).filter(v=>numeric(v)>numeric(newPrice));
-  const oldPrice=oldCandidates.sort((a,b)=>numeric(a)-numeric(b))[0]||'';
+  const newPrice=formatPrice(metaPrice || json.newPrice || '');
+  const oldPrice='';
   return {title,description,image,newPrice,oldPrice,referencePrice:oldPrice};
 }
 function extractMercadoLivreId(url='',html=''){
@@ -224,6 +221,7 @@ async function mercadoLivreApi(itemId,env){
   const r=await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}`,{headers});
   if(!r.ok) return null;
   const item=await r.json();
+  if(item.id!==itemId || item.currency_id!=='BRL' || item.status!=='active') return null;
   let description='';
   try{
     const dr=await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}/description`,{headers});
@@ -231,7 +229,7 @@ async function mercadoLivreApi(itemId,env){
   }catch{}
   const image=item.pictures?.[0]?.secure_url || item.thumbnail || '';
   const newPrice=formatPrice(item.price);
-  const oldPrice=formatPrice(item.original_price || (numeric(item.base_price)>numeric(item.price)?item.base_price:''));
+  const oldPrice=numeric(item.original_price)>numeric(item.price)?formatPrice(item.original_price):'';
   return {
     title:clean(item.title||item.family_name||''),
     description,
@@ -268,11 +266,11 @@ async function shopeeAffiliateApi(itemId,shopId,env){
   if(!r.ok) return null;
   const body=await r.json();
   const nodes=body?.data?.productOfferV2?.nodes||[];
-  const node=nodes.find(x=>String(x.itemId)===String(itemId)) || nodes[0];
+  const node=nodes.find(x=>String(x.itemId)===String(itemId) && (!shopId || String(x.shopId)===String(shopId)));
   if(!node) return null;
   const newPrice=formatPrice(node.priceMin);
   const discount=discountText('',newPrice,node.priceDiscountRate);
-  const oldPrice=calcOldFromDiscount(newPrice,node.priceDiscountRate);
+  const oldPrice='';
   return {
     title:clean(node.productName||''),
     description:'',
@@ -285,6 +283,7 @@ async function shopeeAffiliateApi(itemId,shopId,env){
     shopId:String(node.shopId||shopId||''),
     shopName:clean(node.shopName||''),
     offerLink:node.offerLink||'',
+    priceMax:formatPrice(node.priceMax),
     sourceMethod:'API de Afiliados Shopee'
   };
 }
@@ -311,22 +310,29 @@ export async function onRequestGet({request,env}){
   try{
     const page=await fetchPage(input.toString());
     const p=platformFromUrl(page.finalUrl)||platformFromUrl(input.toString());
-    const htmlData=p==='SHOPEE'?shopeeEmbeddedData(page.html):genericHtmlData(page.html);
+    const htmlData=genericHtmlData(page.html);
     let data={...htmlData,sourceMethod:'Metadados da página'};
 
     if(p==='MERCADO LIVRE'){
       const itemId=extractMercadoLivreId(page.finalUrl,page.html);
       const api=await mercadoLivreApi(itemId,env).catch(()=>null);
-      if(api) data=merge(api,data);
+      if(api) data={...merge(api,data),newPrice:api.newPrice,oldPrice:api.oldPrice,referencePrice:api.referencePrice,discount:api.discount};
       data.productId=data.productId||itemId;
     }else if(p==='SHOPEE'){
       const ids=extractShopeeIds(page.finalUrl,page.html);
       const api=await shopeeAffiliateApi(ids.itemId,ids.shopId,env).catch(()=>null);
-      if(api) data=merge(api,data);
+      if(api) data={...merge(api,data),newPrice:api.newPrice,oldPrice:api.oldPrice,referencePrice:api.referencePrice,discount:api.discount};
       data.productId=data.productId||ids.itemId;
       data.shopId=data.shopId||ids.shopId;
     }
 
+    const apiPrice=Boolean(data.sourceMethod.startsWith('API') && data.newPrice);
+    const priceRange=p==='SHOPEE' && numeric(data.priceMax)>numeric(data.newPrice);
+    // HTML can include recommendations, installments and unrelated product prices.
+    // Preserve descriptive metadata, but do not publish these prices as confirmed.
+    if(!apiPrice){
+      data.newPrice=''; data.oldPrice=''; data.referencePrice=''; data.discount='';
+    }
     data.description=compactDescription(data.description,data.title);
     data.referencePrice=data.referencePrice||data.oldPrice||'';
     data.discount=data.discount||discountText(data.referencePrice||data.oldPrice,data.newPrice);
@@ -347,6 +353,11 @@ export async function onRequestGet({request,env}){
       shopName:data.shopName||'',
       sourceMethod:data.sourceMethod||'Leitura automática',
       complete,
+      priceStatus:apiPrice?(priceRange?'range':'api_observed'):'unconfirmed',
+      priceCheckedAt:apiPrice?new Date().toISOString():null,
+      priceMax:data.priceMax||'',
+      requiresReview:true,
+      warning:apiPrice?(priceRange?'Preço mínimo entre variações. Confira o modelo antes de divulgar.':'Preço consultado na API. Confira variação, pagamento e cupons antes de divulgar.'):'Preço não confirmado pela API. Revise o produto na loja.',
       error:complete?'':'Consegui abrir o link, mas a loja não entregou todos os dados automaticamente.',
       shopeeApiConfigured:Boolean(env.SHOPEE_APP_ID&&env.SHOPEE_SECRET)
     },{headers:{'cache-control':'no-store'}});
@@ -354,3 +365,4 @@ export async function onRequestGet({request,env}){
     return Response.json({error:e?.message||'Não foi possível ler esse produto automaticamente.'},{status:422,headers:{'cache-control':'no-store'}});
   }
 }
+
