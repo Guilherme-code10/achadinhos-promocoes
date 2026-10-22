@@ -1,3 +1,4 @@
+import {accessToken} from '../../lib/meli.mjs';
 const ALLOWED_HOSTS = [
   'shopee.com.br',
   's.shopee.com.br',
@@ -229,7 +230,8 @@ async function fetchPage(input){
 async function mercadoLivreApi(itemId,env){
   if(!itemId) return null;
   const headers={'accept':'application/json'};
-  if(env.ML_ACCESS_TOKEN) headers.authorization=`Bearer ${env.ML_ACCESS_TOKEN}`;
+  const token=await accessToken(env);
+  if(token) headers.authorization=`Bearer ${token}`;
   const r=await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}`,{headers});
   if(!r.ok){
     const code=({401:'ML_AUTH_REQUIRED',403:'ML_ACCESS_DENIED',404:'ML_ITEM_NOT_FOUND',429:'ML_RATE_LIMIT'})[r.status]||'ML_API_UNAVAILABLE';
@@ -358,6 +360,9 @@ export async function onRequestGet({request,env}){
     const complete=Boolean(data.title && data.newPrice);
 
     const messages={
+      ML_CONFIG_REQUIRED:'A configuração segura da integração Mercado Livre está incompleta.',
+      ML_RECONNECT_REQUIRED:'Reconecte o Mercado Livre no painel de integrações.',
+      ML_REFRESH_BUSY:'A autorização está sendo renovada. Tente novamente em instantes.',
       ML_AUTH_REQUIRED:'A autorização do Mercado Livre está ausente ou expirou.',
       ML_ACCESS_DENIED:'O Mercado Livre recusou o acesso a este anúncio pela API.',
       ML_ITEM_NOT_FOUND:'O anúncio não foi encontrado na API do Mercado Livre.',
