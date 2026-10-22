@@ -145,10 +145,22 @@ function genericHtmlData(html){
   return {title,description,image,newPrice,oldPrice,referencePrice:oldPrice};
 }
 function extractMercadoLivreId(url='',html=''){
-  const hay=[url,canonical(html),html.slice(0,400000)].join(' ');
-  const patterns=[/\b(MLB[-_]?(\d{6,}))\b/i,/\/p\/(MLB\d{6,})\b/i,/item[_-]?id["'=:\s]+["']?(MLB\d{6,})/i];
-  for(const re of patterns){
-    const m=re.exec(hay); if(m) return (m[1]||'').replace(/[-_]/g,'').toUpperCase();
+  // Catalogue IDs (/p/MLB...) are not seller item IDs. Never pick an ID
+  // from unrelated recommendations or scripts in the page.
+  for(const candidate of [url,decodeHtml(canonical(html))]){
+    try{
+      const parsed=new URL(candidate);
+      if(!isAllowedHost(parsed.hostname))continue;
+      for(const params of [parsed.searchParams,new URLSearchParams(parsed.hash.slice(1))]){
+        for(const key of ['item_id','itemId','wid']){
+          const value=params.get(key)||'';
+          if(/^MLB[-_]?\d{6,}$/i.test(value))return value.replace(/[-_]/g,'').toUpperCase();
+        }
+      }
+      if(/\/p\/MLB\d+/i.test(parsed.pathname))continue;
+      const match=/^\/(MLB[-_]?\d{6,})(?:[-/]|$)/i.exec(parsed.pathname);
+      if(match)return match[1].replace(/[-_]/g,'').toUpperCase();
+    }catch{}
   }
   return '';
 }
@@ -219,7 +231,10 @@ async function mercadoLivreApi(itemId,env){
   const headers={'accept':'application/json'};
   if(env.ML_ACCESS_TOKEN) headers.authorization=`Bearer ${env.ML_ACCESS_TOKEN}`;
   const r=await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}`,{headers});
-  if(!r.ok) return null;
+  if(!r.ok){
+    const code=({401:'ML_AUTH_REQUIRED',403:'ML_ACCESS_DENIED',404:'ML_ITEM_NOT_FOUND',429:'ML_RATE_LIMIT'})[r.status]||'ML_API_UNAVAILABLE';
+    throw Object.assign(new Error(code),{code});
+  }
   const item=await r.json();
   if(item.id!==itemId || item.currency_id!=='BRL' || item.status!=='active') return null;
   let description='';
@@ -308,14 +323,18 @@ export async function onRequestGet({request,env}){
   if(!['http:','https:'].includes(input.protocol) || !isAllowedHost(input.hostname)) return Response.json({error:'Cole um link da Shopee ou do Mercado Livre.'},{status:400});
 
   try{
-    const page=await fetchPage(input.toString());
+    const directId=platformFromUrl(input.toString())==='MERCADO LIVRE'?extractMercadoLivreId(input.toString()):'';
+    const page=directId?{html:'',finalUrl:input.toString(),status:200}:await fetchPage(input.toString());
     const p=platformFromUrl(page.finalUrl)||platformFromUrl(input.toString());
     const htmlData=genericHtmlData(page.html);
     let data={...htmlData,sourceMethod:'Metadados da página'};
+    let issueCode='';
 
     if(p==='MERCADO LIVRE'){
       const itemId=extractMercadoLivreId(page.finalUrl,page.html);
-      const api=await mercadoLivreApi(itemId,env).catch(()=>null);
+      if(!itemId)issueCode='ML_ITEM_ID_REQUIRED';
+      const api=await mercadoLivreApi(itemId,env).catch(e=>{issueCode=e.code||'ML_API_UNAVAILABLE';return null;});
+      if(itemId && !api && !issueCode)issueCode='ML_ITEM_UNAVAILABLE';
       if(api) data={...merge(api,data),newPrice:api.newPrice,oldPrice:api.oldPrice,referencePrice:api.referencePrice,discount:api.discount};
       data.productId=data.productId||itemId;
     }else if(p==='SHOPEE'){
@@ -338,6 +357,15 @@ export async function onRequestGet({request,env}){
     data.discount=data.discount||discountText(data.referencePrice||data.oldPrice,data.newPrice);
     const complete=Boolean(data.title && data.newPrice);
 
+    const messages={
+      ML_AUTH_REQUIRED:'A autorização do Mercado Livre está ausente ou expirou.',
+      ML_ACCESS_DENIED:'O Mercado Livre recusou o acesso a este anúncio pela API.',
+      ML_ITEM_NOT_FOUND:'O anúncio não foi encontrado na API do Mercado Livre.',
+      ML_RATE_LIMIT:'O Mercado Livre limitou as consultas. Tente novamente mais tarde.',
+      ML_API_UNAVAILABLE:'Não foi possível consultar a API do Mercado Livre agora.',
+      ML_ITEM_ID_REQUIRED:'Este link não identifica um anúncio específico. Abra a oferta do vendedor e copie o link desse anúncio.',
+      ML_ITEM_UNAVAILABLE:'O anúncio não está ativo em reais ou retornou uma identificação diferente.'
+    };
     return Response.json({
       platform:p,
       title:data.title||'',
@@ -357,8 +385,9 @@ export async function onRequestGet({request,env}){
       priceCheckedAt:apiPrice?new Date().toISOString():null,
       priceMax:data.priceMax||'',
       requiresReview:true,
-      warning:apiPrice?(priceRange?'Preço mínimo entre variações. Confira o modelo antes de divulgar.':'Preço consultado na API. Confira variação, pagamento e cupons antes de divulgar.'):'Preço não confirmado pela API. Revise o produto na loja.',
-      error:complete?'':'Consegui abrir o link, mas a loja não entregou todos os dados automaticamente.',
+      issueCode,
+      warning:messages[issueCode]||(apiPrice?(priceRange?'Preço mínimo entre variações. Confira o modelo antes de divulgar.':'Preço consultado na API. Confira variação, pagamento e cupons antes de divulgar.'):'Preço não confirmado pela API. Revise o produto na loja.'),
+      error:complete?'':messages[issueCode]||'A loja não entregou todos os dados automaticamente.',
       shopeeApiConfigured:Boolean(env.SHOPEE_APP_ID&&env.SHOPEE_SECRET)
     },{headers:{'cache-control':'no-store'}});
   }catch(e){
