@@ -40,6 +40,22 @@ O CLI reutiliza a consulta de produtos do projeto, com `SHOPEE_APP_ID`, `SHOPEE_
 
 ## Pendências
 
-Painel web da fila, sincronização com D1, conexão WhatsApp e destino autorizado, busca automática de ofertas, métricas de vendas/comissão e execução na nuvem. Não existe rotina ativa em segundo plano no ChatGPT.
+Sincronização com D1, conexão WhatsApp e destino autorizado, busca automática de ofertas, métricas de vendas/comissão e execução na nuvem. Não existe rotina ativa em segundo plano no ChatGPT.
 
 Testes: `node --test tests/*.test.mjs`. Cobrem pausa, mudança de preço/identidade, faixa de preço, consulta antiga, concorrência e resultado incerto. APIs são simuladas, sem envio externo.
+
+## Dashboard local
+
+O painel está implementado com login, visão geral, consulta de produtos, agendamento com conferência humana, filtros, pausa, cancelamento e histórico. Usa a mesma fila SQLite do robô; não execute `run` junto com o painel. O painel já processa as ofertas vencidas em simulação a cada cinco segundos.
+
+1. Instale Node 24.
+2. Crie um arquivo local `.env` (ignorado pelo Git) com `DASHBOARD_PASSWORD` contendo uma senha exclusiva de pelo menos 12 caracteres. Inclua as credenciais de consulta de produtos disponíveis, conforme a seção acima. Não use credenciais reais nos testes automatizados.
+3. Execute `node --env-file=.env bot/dashboard.mjs` na raiz do projeto.
+4. Abra `http://127.0.0.1:8788` no mesmo computador, informe a senha e consulte uma oferta.
+5. Confira as condições na loja, escolha um horário e adicione à fila. Retome a simulação; o status final será Simulada ou Revisão.
+
+Não é preciso `npm install`. O painel atende apenas em 127.0.0.1, com validação de Host/Origin, cookie HttpOnly, limite de tentativas de senha e política de conteúdo restritiva. Não exponha esse servidor na internet nem o publique como site estático: para uso remoto ainda faltam HTTPS, configuração de origem, persistência e credenciais no servidor escolhido. O painel Node é separado da página `/integracoes.html` da Cloudflare.
+
+As métricas exibem até os 200 registros mais recentes e não são indicadores de vendas. A sessão expira em oito horas ou ao reiniciar o painel. O botão Testar próxima oferta respeita pausa e horário; não adianta ofertas futuras. Resultados incertos de um futuro conector exigem conferência manual.
+
+O layout tem versões para celular e desktop. Os testes HTTP verificam o ciclo login → agendar → processar → cancelar, mas não substituem a validação visual em navegador ou os testes reais nas lojas.

@@ -14,7 +14,7 @@ export function database(path){
  return db;
 }
 export function cents(value){
- if(typeof value==='number')return Number.isFinite(value)&&value>0?Math.round(value*100):null;
+ if(typeof value==='number')return Number.isSafeInteger(Math.round(value*100))&&value>0?Math.round(value*100):null;
  if(typeof value!=='string')return null;
  let s=value.trim();
  if(/^\d{1,3}(\.\d{3})*,\d{2}$/.test(s))s=s.replaceAll('.','').replace(',','.');

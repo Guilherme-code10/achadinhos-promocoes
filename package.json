@@ -1,0 +1,11 @@
+{
+  "name": "achadinhos-promocoes",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=24"},
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "dashboard": "node --env-file=.env bot/dashboard.mjs",
+    "bot": "node --env-file=.env bot/cli.mjs run"
+  }
+}

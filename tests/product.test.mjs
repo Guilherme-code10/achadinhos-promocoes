@@ -49,6 +49,10 @@ test('unavailable item is blocked',async()=>{
   const data=await run('https://produto.mercadolivre.com.br/MLB-123456789-produto',{},[['api.mercadolibre.com/items/',{id:'MLB123456789',title:'Produto',currency_id:'BRL',status:'paused',price:25}]]);
   assert.equal(data.issueCode,'ML_ITEM_UNAVAILABLE');assert.equal(data.complete,false);
 });
+test('Mercado Livre out of stock is blocked',async()=>{
+ const data=await run('https://produto.mercadolivre.com.br/MLB-123456789-produto',{},[['api.mercadolibre.com/items/',{id:'MLB123456789',title:'Produto',currency_id:'BRL',status:'active',available_quantity:0,price:25}]]);
+ assert.equal(data.complete,false);assert.equal(data.newPrice,'');
+});
 test('Shopee range is not an old price and never estimates an original price',async()=>{
   const data=await run('https://shopee.com.br/product/123/456',{SHOPEE_APP_ID:'test',SHOPEE_SECRET:'test'},[
     ['graphql',{data:{productOfferV2:{nodes:[{itemId:456,shopId:123,productName:'Produto',priceMin:'10',priceMax:'25',priceDiscountRate:50}]}}}],

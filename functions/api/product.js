@@ -1,4 +1,5 @@
 import {accessToken} from '../../lib/meli.mjs';
+const timedFetch=(url,options={})=>fetch(url,{...options,signal:AbortSignal.timeout(12000)});
 const ALLOWED_HOSTS = [
   'shopee.com.br',
   's.shopee.com.br',
@@ -204,7 +205,7 @@ async function fetchPage(input){
   if(!['http:','https:'].includes(current.protocol) || !isAllowedHost(current.hostname)) throw new Error('Use um link da Shopee ou Mercado Livre.');
   let response=null;
   for(let i=0;i<6;i++){
-    response=await fetch(current.toString(),{
+    response=await timedFetch(current.toString(),{
       redirect:'manual',
       headers:{
         'user-agent':'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
@@ -232,16 +233,16 @@ async function mercadoLivreApi(itemId,env){
   const headers={'accept':'application/json'};
   const token=await accessToken(env);
   if(token) headers.authorization=`Bearer ${token}`;
-  const r=await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}`,{headers});
+  const r=await timedFetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}`,{headers});
   if(!r.ok){
     const code=({401:'ML_AUTH_REQUIRED',403:'ML_ACCESS_DENIED',404:'ML_ITEM_NOT_FOUND',429:'ML_RATE_LIMIT'})[r.status]||'ML_API_UNAVAILABLE';
     throw Object.assign(new Error(code),{code});
   }
   const item=await r.json();
-  if(item.id!==itemId || item.currency_id!=='BRL' || item.status!=='active') return null;
+  if(item.id!==itemId || item.currency_id!=='BRL' || item.status!=='active' || item.available_quantity===0) return null;
   let description='';
   try{
-    const dr=await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}/description`,{headers});
+    const dr=await timedFetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}/description`,{headers});
     if(dr.ok){const d=await dr.json();description=clean(d.plain_text||'')}
   }catch{}
   const image=item.pictures?.[0]?.secure_url || item.thumbnail || '';
@@ -272,7 +273,7 @@ async function shopeeAffiliateApi(itemId,shopId,env){
   const payload=JSON.stringify({query});
   const timestamp=Math.floor(Date.now()/1000).toString();
   const signature=await sha256Hex(`${env.SHOPEE_APP_ID}${timestamp}${payload}${env.SHOPEE_SECRET}`);
-  const r=await fetch('https://open-api.affiliate.shopee.com.br/graphql',{
+  const r=await timedFetch('https://open-api.affiliate.shopee.com.br/graphql',{
     method:'POST',
     headers:{
       'content-type':'application/json',
