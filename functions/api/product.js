@@ -1,3 +1,5 @@
+import {accessToken} from '../../lib/meli.mjs';
+const timedFetch=(url,options={})=>fetch(url,{...options,signal:AbortSignal.timeout(12000)});
 const ALLOWED_HOSTS = [
   'shopee.com.br',
   's.shopee.com.br',
@@ -117,10 +119,9 @@ function pickJsonProduct(items){
   for(const p of items){
     const offer=Array.isArray(p.offers)?p.offers[0]:p.offers||{};
     const price=offer.price ?? offer.lowPrice ?? p.price;
-    const high=offer.highPrice ?? '';
     const image=Array.isArray(p.image)?p.image[0]:p.image;
     if(p.name||price||image||p.description){
-      return {title:clean(p.name||''),description:clean(p.description||''),image:image||'',newPrice:formatPrice(price),oldPrice:formatPrice(high)};
+      return {title:clean(p.name||''),description:clean(p.description||''),image:image||'',newPrice:formatPrice(price),oldPrice:''};
     }
   }
   return {title:'',description:'',image:'',newPrice:'',oldPrice:''};
@@ -141,17 +142,27 @@ function genericHtmlData(html){
   const image=json.image || anyMeta(html,['og:image','twitter:image','image']) || '';
   const description=json.description || anyMeta(html,['description','og:description','twitter:description']) || '';
   const metaPrice=anyMeta(html,['product:price:amount','og:price:amount','price','product:price']) || json.newPrice;
-  const prices=collectVisiblePrices(html);
-  const newPrice=formatPrice(metaPrice || json.newPrice || prices[0] || '');
-  const oldCandidates=[json.oldPrice,...prices].filter(Boolean).filter(v=>numeric(v)>numeric(newPrice));
-  const oldPrice=oldCandidates.sort((a,b)=>numeric(a)-numeric(b))[0]||'';
+  const newPrice=formatPrice(metaPrice || json.newPrice || '');
+  const oldPrice='';
   return {title,description,image,newPrice,oldPrice,referencePrice:oldPrice};
 }
 function extractMercadoLivreId(url='',html=''){
-  const hay=[url,canonical(html),html.slice(0,400000)].join(' ');
-  const patterns=[/\b(MLB[-_]?(\d{6,}))\b/i,/\/p\/(MLB\d{6,})\b/i,/item[_-]?id["'=:\s]+["']?(MLB\d{6,})/i];
-  for(const re of patterns){
-    const m=re.exec(hay); if(m) return (m[1]||'').replace(/[-_]/g,'').toUpperCase();
+  // Catalogue IDs (/p/MLB...) are not seller item IDs. Never pick an ID
+  // from unrelated recommendations or scripts in the page.
+  for(const candidate of [url,decodeHtml(canonical(html))]){
+    try{
+      const parsed=new URL(candidate);
+      if(!isAllowedHost(parsed.hostname))continue;
+      for(const params of [parsed.searchParams,new URLSearchParams(parsed.hash.slice(1))]){
+        for(const key of ['item_id','itemId','wid']){
+          const value=params.get(key)||'';
+          if(/^MLB[-_]?\d{6,}$/i.test(value))return value.replace(/[-_]/g,'').toUpperCase();
+        }
+      }
+      if(/\/p\/MLB\d+/i.test(parsed.pathname))continue;
+      const match=/^\/(MLB[-_]?\d{6,})(?:[-/]|$)/i.exec(parsed.pathname);
+      if(match)return match[1].replace(/[-_]/g,'').toUpperCase();
+    }catch{}
   }
   return '';
 }
@@ -194,7 +205,7 @@ async function fetchPage(input){
   if(!['http:','https:'].includes(current.protocol) || !isAllowedHost(current.hostname)) throw new Error('Use um link da Shopee ou Mercado Livre.');
   let response=null;
   for(let i=0;i<6;i++){
-    response=await fetch(current.toString(),{
+    response=await timedFetch(current.toString(),{
       redirect:'manual',
       headers:{
         'user-agent':'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
@@ -220,18 +231,23 @@ async function fetchPage(input){
 async function mercadoLivreApi(itemId,env){
   if(!itemId) return null;
   const headers={'accept':'application/json'};
-  if(env.ML_ACCESS_TOKEN) headers.authorization=`Bearer ${env.ML_ACCESS_TOKEN}`;
-  const r=await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}`,{headers});
-  if(!r.ok) return null;
+  const token=await accessToken(env);
+  if(token) headers.authorization=`Bearer ${token}`;
+  const r=await timedFetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}`,{headers});
+  if(!r.ok){
+    const code=({401:'ML_AUTH_REQUIRED',403:'ML_ACCESS_DENIED',404:'ML_ITEM_NOT_FOUND',429:'ML_RATE_LIMIT'})[r.status]||'ML_API_UNAVAILABLE';
+    throw Object.assign(new Error(code),{code});
+  }
   const item=await r.json();
+  if(item.id!==itemId || item.currency_id!=='BRL' || item.status!=='active' || item.available_quantity===0) return null;
   let description='';
   try{
-    const dr=await fetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}/description`,{headers});
+    const dr=await timedFetch(`https://api.mercadolibre.com/items/${encodeURIComponent(itemId)}/description`,{headers});
     if(dr.ok){const d=await dr.json();description=clean(d.plain_text||'')}
   }catch{}
   const image=item.pictures?.[0]?.secure_url || item.thumbnail || '';
   const newPrice=formatPrice(item.price);
-  const oldPrice=formatPrice(item.original_price || (numeric(item.base_price)>numeric(item.price)?item.base_price:''));
+  const oldPrice=numeric(item.original_price)>numeric(item.price)?formatPrice(item.original_price):'';
   return {
     title:clean(item.title||item.family_name||''),
     description,
@@ -257,7 +273,7 @@ async function shopeeAffiliateApi(itemId,shopId,env){
   const payload=JSON.stringify({query});
   const timestamp=Math.floor(Date.now()/1000).toString();
   const signature=await sha256Hex(`${env.SHOPEE_APP_ID}${timestamp}${payload}${env.SHOPEE_SECRET}`);
-  const r=await fetch('https://open-api.affiliate.shopee.com.br/graphql',{
+  const r=await timedFetch('https://open-api.affiliate.shopee.com.br/graphql',{
     method:'POST',
     headers:{
       'content-type':'application/json',
@@ -268,11 +284,11 @@ async function shopeeAffiliateApi(itemId,shopId,env){
   if(!r.ok) return null;
   const body=await r.json();
   const nodes=body?.data?.productOfferV2?.nodes||[];
-  const node=nodes.find(x=>String(x.itemId)===String(itemId)) || nodes[0];
+  const node=nodes.find(x=>String(x.itemId)===String(itemId) && (!shopId || String(x.shopId)===String(shopId)));
   if(!node) return null;
   const newPrice=formatPrice(node.priceMin);
   const discount=discountText('',newPrice,node.priceDiscountRate);
-  const oldPrice=calcOldFromDiscount(newPrice,node.priceDiscountRate);
+  const oldPrice='';
   return {
     title:clean(node.productName||''),
     description:'',
@@ -285,6 +301,7 @@ async function shopeeAffiliateApi(itemId,shopId,env){
     shopId:String(node.shopId||shopId||''),
     shopName:clean(node.shopName||''),
     offerLink:node.offerLink||'',
+    priceMax:formatPrice(node.priceMax),
     sourceMethod:'API de Afiliados Shopee'
   };
 }
@@ -309,29 +326,52 @@ export async function onRequestGet({request,env}){
   if(!['http:','https:'].includes(input.protocol) || !isAllowedHost(input.hostname)) return Response.json({error:'Cole um link da Shopee ou do Mercado Livre.'},{status:400});
 
   try{
-    const page=await fetchPage(input.toString());
+    const directId=platformFromUrl(input.toString())==='MERCADO LIVRE'?extractMercadoLivreId(input.toString()):'';
+    const page=directId?{html:'',finalUrl:input.toString(),status:200}:await fetchPage(input.toString());
     const p=platformFromUrl(page.finalUrl)||platformFromUrl(input.toString());
-    const htmlData=p==='SHOPEE'?shopeeEmbeddedData(page.html):genericHtmlData(page.html);
+    const htmlData=genericHtmlData(page.html);
     let data={...htmlData,sourceMethod:'Metadados da página'};
+    let issueCode='';
 
     if(p==='MERCADO LIVRE'){
       const itemId=extractMercadoLivreId(page.finalUrl,page.html);
-      const api=await mercadoLivreApi(itemId,env).catch(()=>null);
-      if(api) data=merge(api,data);
+      if(!itemId)issueCode='ML_ITEM_ID_REQUIRED';
+      const api=await mercadoLivreApi(itemId,env).catch(e=>{issueCode=e.code||'ML_API_UNAVAILABLE';return null;});
+      if(itemId && !api && !issueCode)issueCode='ML_ITEM_UNAVAILABLE';
+      if(api) data={...merge(api,data),newPrice:api.newPrice,oldPrice:api.oldPrice,referencePrice:api.referencePrice,discount:api.discount};
       data.productId=data.productId||itemId;
     }else if(p==='SHOPEE'){
       const ids=extractShopeeIds(page.finalUrl,page.html);
       const api=await shopeeAffiliateApi(ids.itemId,ids.shopId,env).catch(()=>null);
-      if(api) data=merge(api,data);
+      if(api) data={...merge(api,data),newPrice:api.newPrice,oldPrice:api.oldPrice,referencePrice:api.referencePrice,discount:api.discount};
       data.productId=data.productId||ids.itemId;
       data.shopId=data.shopId||ids.shopId;
     }
 
+    const apiPrice=Boolean(data.sourceMethod.startsWith('API') && data.newPrice);
+    const priceRange=p==='SHOPEE' && numeric(data.priceMax)>numeric(data.newPrice);
+    // HTML can include recommendations, installments and unrelated product prices.
+    // Preserve descriptive metadata, but do not publish these prices as confirmed.
+    if(!apiPrice){
+      data.newPrice=''; data.oldPrice=''; data.referencePrice=''; data.discount='';
+    }
     data.description=compactDescription(data.description,data.title);
     data.referencePrice=data.referencePrice||data.oldPrice||'';
     data.discount=data.discount||discountText(data.referencePrice||data.oldPrice,data.newPrice);
     const complete=Boolean(data.title && data.newPrice);
 
+    const messages={
+      ML_CONFIG_REQUIRED:'A configuração segura da integração Mercado Livre está incompleta.',
+      ML_RECONNECT_REQUIRED:'Reconecte o Mercado Livre no painel de integrações.',
+      ML_REFRESH_BUSY:'A autorização está sendo renovada. Tente novamente em instantes.',
+      ML_AUTH_REQUIRED:'A autorização do Mercado Livre está ausente ou expirou.',
+      ML_ACCESS_DENIED:'O Mercado Livre recusou o acesso a este anúncio pela API.',
+      ML_ITEM_NOT_FOUND:'O anúncio não foi encontrado na API do Mercado Livre.',
+      ML_RATE_LIMIT:'O Mercado Livre limitou as consultas. Tente novamente mais tarde.',
+      ML_API_UNAVAILABLE:'Não foi possível consultar a API do Mercado Livre agora.',
+      ML_ITEM_ID_REQUIRED:'Este link não identifica um anúncio específico. Abra a oferta do vendedor e copie o link desse anúncio.',
+      ML_ITEM_UNAVAILABLE:'O anúncio não está ativo em reais ou retornou uma identificação diferente.'
+    };
     return Response.json({
       platform:p,
       title:data.title||'',
@@ -347,10 +387,17 @@ export async function onRequestGet({request,env}){
       shopName:data.shopName||'',
       sourceMethod:data.sourceMethod||'Leitura automática',
       complete,
-      error:complete?'':'Consegui abrir o link, mas a loja não entregou todos os dados automaticamente.',
+      priceStatus:apiPrice?(priceRange?'range':'api_observed'):'unconfirmed',
+      priceCheckedAt:apiPrice?new Date().toISOString():null,
+      priceMax:data.priceMax||'',
+      requiresReview:true,
+      issueCode,
+      warning:messages[issueCode]||(apiPrice?(priceRange?'Preço mínimo entre variações. Confira o modelo antes de divulgar.':'Preço consultado na API. Confira variação, pagamento e cupons antes de divulgar.'):'Preço não confirmado pela API. Revise o produto na loja.'),
+      error:complete?'':messages[issueCode]||'A loja não entregou todos os dados automaticamente.',
       shopeeApiConfigured:Boolean(env.SHOPEE_APP_ID&&env.SHOPEE_SECRET)
     },{headers:{'cache-control':'no-store'}});
   }catch(e){
     return Response.json({error:e?.message||'Não foi possível ler esse produto automaticamente.'},{status:422,headers:{'cache-control':'no-store'}});
   }
 }
+
