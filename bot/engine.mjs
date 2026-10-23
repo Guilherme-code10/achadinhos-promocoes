@@ -21,9 +21,15 @@ export function cents(value){
  else if(!/^\d+(\.\d{1,2})?$/.test(s))return null;
  const n=Number(s);return Number.isSafeInteger(Math.round(n*100))&&n>0?Math.round(n*100):null;
 }
-export function enqueue(db,{url,productId,price,dueAt},now=Date.now()){
- const u=new URL(url),host=u.hostname.toLowerCase();
+export function validateOfferUrl(url){
+ let u;try{u=new URL(url);}catch{throw new Error('Link HTTPS de loja suportada obrigatório.');}
+ const host=u.hostname.toLowerCase();
  if(u.protocol!=='https:'||u.username||u.password||!['shopee.com.br','shope.ee','mercadolivre.com.br','mercadolivre.com','mercadolibre.com','meli.la'].some(h=>host===h||host.endsWith('.'+h)))throw new Error('Link HTTPS de loja suportada obrigatório.');
+ if(u.port&&u.port!=='443')throw new Error('Link HTTPS de loja suportada obrigatório.');
+ return u;
+}
+export function enqueue(db,{url,productId,price,dueAt},now=Date.now()){
+ validateOfferUrl(url);
  const amount=cents(price),due=Date.parse(dueAt);
  if(!amount||!Number.isFinite(due)||due<now||!/^[-\w]{1,80}$/.test(String(productId)))throw new Error('Informe ID, preço e horário futuro com fuso horário.');
  if(!/(Z|[+-]\d\d:\d\d)$/.test(dueAt))throw new Error('Inclua o fuso no horário, por exemplo -03:00.');
@@ -49,7 +55,7 @@ export async function tick(db,{lookup,send,mode='dry-run',now=Date.now()}){
  if(db.prepare('SELECT paused FROM settings WHERE id=1').get().paused)return {status:'paused'};
  const job=db.prepare("UPDATE jobs SET status='checking',updated_at=? WHERE id=(SELECT id FROM jobs WHERE status='queued' AND due_at<=? ORDER BY due_at LIMIT 1) AND status='queued' RETURNING *").get(now,now);
  if(!job)return {status:'idle'};
- function finish(status,reason){db.prepare("UPDATE jobs SET status=?,reason=?,updated_at=? WHERE id=? AND status!='cancelled'").run(status,reason,Date.now(),job.id);event(db,job.id,reason,Date.now());return {id:job.id,status};}
+ function finish(status,reason){const result=db.prepare("UPDATE jobs SET status=?,reason=?,updated_at=? WHERE id=? AND status!='cancelled'").run(status,reason,Date.now(),job.id);if(!result.changes)return {id:job.id,status:'cancelled'};event(db,job.id,reason,Date.now());return {id:job.id,status};}
  let p;
  try{p=await lookup(job.url);}catch{return finish('blocked','Falha na consulta; revise antes de reenviar.');}
  const problem=validate(job,p);if(problem)return finish('blocked',problem);
@@ -65,3 +71,4 @@ export async function tick(db,{lookup,send,mode='dry-run',now=Date.now()}){
   return finish('sent','Conector confirmou envio.');
  }catch{return finish('uncertain','Resultado do envio desconhecido; conferir destino antes de repetir.');}
 }
+

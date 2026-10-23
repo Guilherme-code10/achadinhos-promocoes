@@ -12,3 +12,12 @@ test('cancel during lookup prevents any dispatch',async()=>{const {db,now}=setup
 test('future jobs are not processed early',async()=>{const {db}=setup();pause(db,false);let calls=0;assert.equal((await tick(db,{now:0,lookup:async()=>{calls++;}})).status,'idle');assert.equal(calls,0);db.close();});
 test('invalid amounts never enter money calculations',()=>{for(const value of ['','R$ 20','1.234,50 a 2.000,00','1e4',NaN,Infinity,-1,0])assert.equal(cents(value),null);assert.equal(cents('1.234,50'),123450);assert.equal(cents('29.90'),2990);});
 test('lookup failure is blocked without automatic retries',async()=>{const {db,now}=setup();pause(db,false);assert.equal((await tick(db,{now,lookup:async()=>{throw Error('network');}})).status,'blocked');assert.equal((await tick(db,{now,lookup:async()=>product()})).status,'idle');db.close();});
+for(const outcome of ['failure','price-change','pause'])test('cancellation remains authoritative after '+outcome,async()=>{
+ const {db,now}=setup();pause(db,false);const id=inspect(db).jobs[0].id;
+ try{
+  const result=await tick(db,{now,lookup:async()=>{cancel(db,id);if(outcome==='failure')throw Error('network');if(outcome==='pause')pause(db,true);return {...product(),newPrice:outcome==='price-change'?'39,90':'29,90'};}});
+  assert.equal(result.status,'cancelled');assert.equal(inspect(db).jobs[0].status,'cancelled');
+  assert.equal(inspect(db).events.filter(e=>e.job_id===id)[0].event,'Cancelado');
+ }finally{db.close();}
+});
+

@@ -1,7 +1,7 @@
 import http from 'node:http';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {enqueue,pause,cancel,inspect,tick} from './engine.mjs';
+import {enqueue,pause,cancel,inspect,tick,validateOfferUrl} from './engine.mjs';
 
 const assets=new Map([
  ['/', ['dashboard.html','text/html; charset=utf-8']],
@@ -50,6 +50,7 @@ export function dashboardServer({db,lookup,password,intervalMs=5000,assetRoot=ne
    if(path==='/api/cancel')return json(res,200,{cancelled:cancel(db,String(data.id||''))});
    if(path==='/api/lookup'){
     if(typeof data.url!=='string'||data.url.length>4096)return json(res,400,{error:'Link inválido.'});
+    validateOfferUrl(data.url);
     const p=await lookup(data.url);
     return json(res,200,{...p,affiliateUrl:data.url});
    }
@@ -71,3 +72,4 @@ export function dashboardServer({db,lookup,password,intervalMs=5000,assetRoot=ne
  server.on('close',()=>{if(timer)clearInterval(timer);sessions.clear();});
  return server;
 }
+

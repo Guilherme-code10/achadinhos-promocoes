@@ -48,4 +48,14 @@ test('rejects malformed input and credentials in URLs',async()=>{
 test('dashboard never exposes static source or follows foreign hosts',async()=>{
  const f=await fixture();try{assert.equal((await f.call('/server.mjs')).status,404);const status=await new Promise((resolve,reject)=>{http.get(f.origin+'/api/status',{headers:{host:'attacker.example'}},r=>{r.resume();resolve(r.statusCode);}).on('error',reject);});assert.equal(status,403);}finally{await f.close();}
 });
+test('malformed and unsupported links are rejected before lookup or scheduling',async()=>{
+ const f=await fixture();try{
+  await f.login();
+  for(const url of ['not a URL','http://mercadolivre.com.br/item','https://mercadolivre.com.br.attacker.example/item','https://user:secret@shopee.com.br/item','https://shopee.com.br:8443/item','https://127.0.0.1/item']){
+   assert.equal((await f.call('/api/lookup',{url})).status,400,url);
+   assert.equal((await f.call('/api/jobs',{url,productId:'MLB123456789',price:'29,90',dueAt:new Date(Date.now()+60000).toISOString()})).status,400,url);
+  }
+  assert.equal((await f.call('/api/lookup',{url:'https://mercadolivre.com.br/MLB-123456789'})).status,200);
+ }finally{await f.close();}
+});
 
