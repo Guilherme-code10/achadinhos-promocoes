@@ -1,5 +1,14 @@
 # Achadinhos & Promoções — Central de Ofertas V4
 
+## 🚀 Portfólio: Robô de automação de ofertas
+
+Também desenvolvi um **robô de descoberta, verificação, agendamento e integração com WhatsApp**, usando JavaScript, Node.js, Cloudflare Workers, banco D1, Docker e WAHA.
+
+📘 **[Conheça o estudo de caso público do robô Achadinhos](./docs/portfolio-robo-achadinhos/README.md)** — arquitetura, decisões técnicas, desafios e ilustração do dashboard, sem expor o código privado de produção.
+
+> Este repositório contém a **Central de Ofertas V4**; o robô de automação é um projeto relacionado, com operação e código próprios mantidos em repositório privado.
+
+
 Sistema privado para transformar links de afiliado da Shopee e do Mercado Livre em ofertas prontas para WhatsApp.
 
 ## Fluxo V4
