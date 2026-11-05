@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title description">
+<title id="title">Achadinhos e Promoções — Dashboard de automação</title>
+<desc id="description">Ilustração pública do painel, com cartões representando busca, validação, agendamento e integração ao WhatsApp. Não são dados da produção.</desc>
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#083e37"/><stop offset="1" stop-color="#16816b"/></linearGradient>
+ <linearGradient id="card" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#f7fbf8"/></linearGradient>
+</defs>
+<rect width="1200" height="630" fill="#f4f8f5"/>
+<rect width="1200" height="242" fill="url(#bg)"/>
+<circle cx="1040" cy="-30" r="215" fill="none" stroke="#ffffff" stroke-opacity=".07" stroke-width="48"/>
+<text x="72" y="53" font-family="Arial, sans-serif" font-size="17" font-weight="700" letter-spacing="3" fill="#e7fff0">ACHADINHOS &amp; PROMOÇÕES</text>
+<text x="72" y="118" font-family="Arial, sans-serif" font-size="43" font-weight="700" fill="white">Automação de ofertas</text>
+<text x="72" y="159" font-family="Arial, sans-serif" font-size="21" fill="#e6fff4">Busca, validação, agendamento e acompanhamento em um só lugar.</text>
+<rect x="860" y="73" width="254" height="46" rx="23" fill="#e7facf"/>
+<text x="987" y="103" text-anchor="middle" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#1a5f35">PROJETO DE PORTFÓLIO</text>
+<rect x="64" y="205" width="1072" height="70" rx="15" fill="white" stroke="#dceae1"/>
+<text x="100" y="247" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#145b50">Painel</text>
+<text x="274" y="247" font-family="Arial, sans-serif" font-size="18" fill="#356c60">Busca</text>
+<text x="450" y="247" font-family="Arial, sans-serif" font-size="18" fill="#356c60">Verificação</text>
+<text x="665" y="247" font-family="Arial, sans-serif" font-size="18" fill="#356c60">Fila</text>
+<text x="796" y="247" font-family="Arial, sans-serif" font-size="18" fill="#356c60">WhatsApp</text>
+<g font-family="Arial, sans-serif">
+ <rect x="64" y="306" width="246" height="149" rx="17" fill="url(#card)" stroke="#d1e9da"/>
+ <rect x="64" y="306" width="246" height="6" rx="3" fill="#32b689"/>
+ <text x="86" y="350" font-size="19" font-weight="700" fill="#245f53">Busca inteligente</text>
+ <text x="86" y="389" font-size="16" fill="#476e64">Categorias variadas</text>
+ <text x="86" y="421" font-size="15" fill="#397565">● Termos rotativos</text>
+ <rect x="326" y="306" width="246" height="149" rx="17" fill="url(#card)" stroke="#d1e9da"/>
+ <rect x="326" y="306" width="246" height="6" rx="3" fill="#32b689"/>
+ <text x="348" y="350" font-size="19" font-weight="700" fill="#245f53">Verificação</text>
+ <text x="348" y="389" font-size="16" fill="#476e64">Preço e origem</text>
+ <text x="348" y="421" font-size="15" fill="#397565">● Antes da publicação</text>
+ <rect x="588" y="306" width="246" height="149" rx="17" fill="url(#card)" stroke="#d1e9da"/>
+ <rect x="588" y="306" width="246" height="6" rx="3" fill="#32b689"/>
+ <text x="610" y="350" font-size="19" font-weight="700" fill="#245f53">Agendamento</text>
+ <text x="610" y="389" font-size="16" fill="#476e64">Fila controlada</text>
+ <text x="610" y="421" font-size="15" fill="#397565">● Sem duplicidades</text>
+ <rect x="850" y="306" width="286" height="149" rx="17" fill="url(#card)" stroke="#d1e9da"/>
+ <rect x="850" y="306" width="286" height="6" rx="3" fill="#32b689"/>
+ <text x="872" y="350" font-size="19" font-weight="700" fill="#245f53">WhatsApp</text>
+ <text x="872" y="389" font-size="16" fill="#476e64">Integração via agente</text>
+ <text x="872" y="421" font-size="15" fill="#397565">● Envio autorizado</text>
+</g>
+<rect x="64" y="488" width="1072" height="76" rx="16" fill="#eaf5ef" stroke="#d1e9da"/>
+<text x="92" y="521" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#154c40">JavaScript  ·  Node.js  ·  Cloudflare Workers  ·  D1  ·  Docker  ·  WAHA</text>
+<text x="92" y="547" font-family="Arial, sans-serif" font-size="14" fill="#4b7668">Visão ilustrativa para portfólio — sem dados de produção, grupos ou credenciais</text>
+<text x="1136" y="602" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#3c7766">Guilherme Augusto Morais · 2026</text>
+</svg>
